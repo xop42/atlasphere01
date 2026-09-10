@@ -5,6 +5,17 @@
 
 (function () {
   'use strict';
+  // --- Security: HTML Entity Sanitizer ---
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
 
   // --- State Variables ---
   let map;
@@ -21,6 +32,10 @@
   // --- Spoken Language Audio Player State ---
   let currentAudioData = null;
   let isAudioPlaying = false;
+  // --- Search Autocomplete & Keyboard Nav State ---
+  let searchResultsCache = [];
+  let selectedSearchIndex = -1;
+
 
 
   // Quiz State
@@ -193,6 +208,15 @@
     renderGeoJson();
     setupEventListeners();
     updateCountryCount();
+
+    // Smoothly fade out and remove map loading skeleton
+    const loader = document.getElementById('map-loader');
+    if (loader) {
+      loader.classList.add('fade-out');
+      setTimeout(() => {
+        if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+      }, 400);
+    }
   }
 
   // Calculate minimum zoom so the world map fills the screen with zero blank/uncolored side margins
@@ -517,11 +541,16 @@
       el.drawerFlagImg.classList.remove('hidden');
       el.drawerFlag.classList.add('hidden');
     } else if (props.iso_a2 && props.iso_a2.length === 2) {
-      el.drawerFlagImg.src = `https://flagcdn.com/w320/${props.iso_a2.toLowerCase()}.png`;
+      const isoCode = props.iso_a2.toLowerCase();
+      el.drawerFlagImg.src = `https://flagcdn.com/w320/${isoCode}.webp`;
       el.drawerFlagImg.onerror = function () {
-        el.drawerFlagImg.classList.add('hidden');
-        el.drawerFlag.classList.remove('hidden');
-        el.drawerFlag.textContent = props.iso_a2 || props.iso_a3 || '';
+        if (this.src.endsWith('.webp')) {
+          this.src = `https://flagcdn.com/w320/${isoCode}.png`;
+        } else {
+          el.drawerFlagImg.classList.add('hidden');
+          el.drawerFlag.classList.remove('hidden');
+          el.drawerFlag.textContent = props.iso_a2 || props.iso_a3 || '';
+        }
       };
       el.drawerFlagImg.classList.remove('hidden');
       el.drawerFlag.classList.add('hidden');
@@ -580,12 +609,15 @@
     el.btnGmaps.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(props.name)}`;
 
     el.detailDrawer.classList.remove('hidden');
+    el.detailDrawer.setAttribute('aria-modal', 'true');
   }
 
     function switchDrawerTab(tabKey) {
     stopLanguageAudio();
     el.drawerTabBtns.forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.drawerTab === tabKey);
+      const isActive = btn.dataset.drawerTab === tabKey;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
 
     if (tabKey === 'overview') {
@@ -600,6 +632,7 @@
   function hideCountryDrawer() {
     stopLanguageAudio();
     el.detailDrawer.classList.add('hidden');
+    el.detailDrawer.setAttribute('aria-modal', 'false');
     if (selectedLayer) {
       geojsonLayer.resetStyle(selectedLayer);
       selectedLayer = null;
@@ -620,7 +653,7 @@
 
     if (landmarkData && landmarkData.image) {
       if (el.capitalPhotoFrame) el.capitalPhotoFrame.classList.remove('hidden');
-      el.capitalImg.src = landmarkData.image;
+      el.capitalImg.loading = "lazy"; el.capitalImg.decoding = "async"; el.capitalImg.src = landmarkData.image;
       el.capitalImg.alt = `${landmarkData.landmark}, ${capital}`;
       el.capitalImg.title = `${landmarkData.landmark} (${capital})`;
       el.capitalImg.classList.remove('hidden');
@@ -636,7 +669,7 @@
     // 2. Fallback to general capital image dataset
     if (generalData && generalData.image) {
       if (el.capitalPhotoFrame) el.capitalPhotoFrame.classList.remove('hidden');
-      el.capitalImg.src = generalData.image;
+      el.capitalImg.loading = "lazy"; el.capitalImg.decoding = "async"; el.capitalImg.src = generalData.image;
       el.capitalImg.alt = `${capital}, ${countryName}`;
       el.capitalImg.title = `${capital}, ${countryName}`;
       el.capitalImg.classList.remove('hidden');
@@ -667,12 +700,15 @@
       });
   }
 
-  // --- Search Autocomplete ---
+  // --- Search Autocomplete with Full Keyboard Navigation & XSS Sanitization ---
   function handleSearchInput(query) {
     query = query.trim().toLowerCase();
     if (!query) {
       el.searchDropdown.classList.add('hidden');
       el.searchClearBtn.classList.add('hidden');
+      el.searchInput.setAttribute('aria-expanded', 'false');
+      searchResultsCache = [];
+      selectedSearchIndex = -1;
       return;
     }
 
@@ -689,28 +725,52 @@
     renderSearchResults(matches);
   }
 
+  function updateSelectedSearchVisuals() {
+    const items = el.searchDropdown.querySelectorAll('.search-item');
+    items.forEach((item, idx) => {
+      const isSel = (idx === selectedSearchIndex);
+      item.classList.toggle('selected', isSel);
+      item.setAttribute('aria-selected', isSel ? 'true' : 'false');
+      if (isSel) {
+        item.scrollIntoView({ block: 'nearest' });
+        el.searchInput.setAttribute('aria-activedescendant', item.id);
+      }
+    });
+  }
+
   function renderSearchResults(results) {
+    searchResultsCache = results;
+    selectedSearchIndex = results.length > 0 ? 0 : -1;
+    el.searchInput.setAttribute('aria-expanded', results.length > 0 ? 'true' : 'false');
+
     if (!results.length) {
-      el.searchDropdown.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 0.82rem; text-align: center;">No countries found</div>';
+      el.searchDropdown.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 0.82rem; text-align: center;" role="status">No countries found</div>';
       el.searchDropdown.classList.remove('hidden');
       return;
     }
 
     el.searchDropdown.innerHTML = results.map((f, i) => {
       const p = f.properties;
-      const flagHtml = (p.iso_a2 && p.iso_a2.length === 2)
-        ? `<img class="search-item-flag" src="https://flagcdn.com/w40/${p.iso_a2.toLowerCase()}.png" alt="" width="20" height="14" style="object-fit:cover; border-radius:2px; vertical-align:middle;">`
-        : `<span class="search-item-flag">${p.iso_a2 || ''}</span>`;
+      const safeId = escapeHtml(p.id);
+      const safeName = escapeHtml(p.name);
+      const safeCapital = escapeHtml(p.capital !== 'N/A' ? `Capital: ${p.capital}` : p.continent);
+      const safeContinent = escapeHtml(getCountryContinent(p));
+      const safeIso = (p.iso_a2 && p.iso_a2.length === 2) ? escapeHtml(p.iso_a2.toLowerCase()) : '';
+
+      const flagHtml = safeIso
+        ? `<img class="search-item-flag" src="https://flagcdn.com/w40/${safeIso}.webp" onerror="this.src='https://flagcdn.com/w40/${safeIso}.png'" alt="" width="20" height="14" loading="lazy" decoding="async" style="object-fit:cover; border-radius:2px; vertical-align:middle;">`
+        : `<span class="search-item-flag">${escapeHtml(p.iso_a2 || '')}</span>`;
+
       return `
-        <div class="search-item ${i === 0 ? 'selected' : ''}" data-country-id="${p.id}">
+        <div class="search-item ${i === 0 ? 'selected' : ''}" id="search-opt-${safeId}" role="option" aria-selected="${i === 0 ? 'true' : 'false'}" data-country-id="${safeId}">
           <div class="search-item-left">
             ${flagHtml}
             <div>
-              <div class="search-item-name">${p.name}</div>
-              <div class="search-item-capital">${p.capital !== 'N/A' ? `Capital: ${p.capital}` : p.continent}</div>
+              <div class="search-item-name">${safeName}</div>
+              <div class="search-item-capital">${safeCapital}</div>
             </div>
           </div>
-          <span class="search-item-badge">${getCountryContinent(p)}</span>
+          <span class="search-item-badge">${safeContinent}</span>
         </div>
       `;
     }).join('');
@@ -722,6 +782,7 @@
         const id = item.dataset.countryId;
         findAndFocusCountry(id);
         el.searchDropdown.classList.add('hidden');
+        el.searchInput.setAttribute('aria-expanded', 'false');
       });
     });
   }
@@ -1133,7 +1194,9 @@
     currentMode = newMode;
 
     el.modeBtns.forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.mode === newMode);
+      const isActive = btn.dataset.mode === newMode;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
 
     hideCountryDrawer();
@@ -1160,9 +1223,16 @@
   // --- Event Listeners ---
   function setupEventListeners() {
     if (el.logoHome) {
-      el.logoHome.addEventListener('click', () => {
+      const resetToHome = () => {
         map.flyTo([22, 12], 2.3, { duration: 1.0 });
         hideCountryDrawer();
+      };
+      el.logoHome.addEventListener('click', resetToHome);
+      el.logoHome.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          resetToHome();
+        }
       });
     }
 
@@ -1228,12 +1298,15 @@
     // Basemap Layer Toggle
     el.basemapToggle.addEventListener('click', (e) => {
       e.stopPropagation();
-      el.basemapMenu.classList.toggle('hidden');
+      const isClosed = el.basemapMenu.classList.toggle('hidden');
+      el.basemapToggle.setAttribute('aria-expanded', isClosed ? 'false' : 'true');
     });
 
     document.addEventListener('click', () => {
       el.basemapMenu.classList.add('hidden');
+      el.basemapToggle.setAttribute('aria-expanded', 'false');
       el.searchDropdown.classList.add('hidden');
+      el.searchInput.setAttribute('aria-expanded', 'false');
     });
 
     el.basemapItems.forEach(item => {
@@ -1274,6 +1347,34 @@
       el.searchDropdown.classList.add('hidden');
     });
 
+    // Keyboard navigation within search input
+    el.searchInput.addEventListener('keydown', (e) => {
+      if (el.searchDropdown.classList.contains('hidden') || !searchResultsCache.length) {
+        if (e.key === 'Enter') e.preventDefault();
+        return;
+      }
+
+      const items = el.searchDropdown.querySelectorAll('.search-item');
+      if (!items.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedSearchIndex = (selectedSearchIndex + 1) % items.length;
+        updateSelectedSearchVisuals();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedSearchIndex = (selectedSearchIndex - 1 + items.length) % items.length;
+        updateSelectedSearchVisuals();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedSearchIndex >= 0 && selectedSearchIndex < items.length) {
+          items[selectedSearchIndex].click();
+        } else if (items.length > 0) {
+          items[0].click();
+        }
+      }
+    });
+
     document.addEventListener('keydown', (e) => {
       if (e.key === '/' && document.activeElement !== el.searchInput) {
         e.preventDefault();
@@ -1281,6 +1382,9 @@
         el.searchInput.select();
       } else if (e.key === 'Escape') {
         el.searchDropdown.classList.add('hidden');
+        el.searchInput.setAttribute('aria-expanded', 'false');
+        el.basemapMenu.classList.add('hidden');
+        el.basemapToggle.setAttribute('aria-expanded', 'false');
         el.searchInput.blur();
         hideCountryDrawer();
       }

@@ -2,20 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Atlasphere — Interactive World Map</title>
+  <meta name="description" content="Atlasphere is a fast, interactive world map featuring cultural heritage, spoken language pronunciations, capitals, landmarks, and geography quizzes in True Black design.">
+  <meta name="keywords" content="interactive world map, world atlas, geography quiz, cultures, spoken language, dark mode map, countries, capitals">
+  <meta name="author" content="Atlasphere">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="canonical" href="https://atlasphere01.vercel.app/">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Atlasphere — Interactive World Map">
+  <meta property="og:description" content="Explore world geography, cultural heritage, spoken languages, and interactive heatmaps in pitch-black OLED design.">
+  <meta property="og:url" content="https://atlasphere01.vercel.app/">
+  <meta property="og:image" content="https://atlasphere01.vercel.app/favicon.svg">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Atlasphere — Interactive World Map">
+  <meta name="twitter:description" content="Explore world geography, cultural heritage, spoken languages, and interactive heatmaps in pitch-black OLED design.">
+  <meta name="twitter:image" content="https://atlasphere01.vercel.app/favicon.svg">
+
+  <!-- Resource Hints & Font Loading -->
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="./style.css">
 </head>
 <body class="theme-black">
+  <a href="#map" class="skip-link">Skip to map</a>
   <div id="app-container">
     <!-- Top Floating Header Bar -->
     <header id="header-bar">
-      <div class="logo-section" id="logo-home">
+      <div class="logo-section" id="logo-home" role="button" tabindex="0" aria-label="Atlasphere Home - Reset Map View">
         <div class="logo-text">
           <h1>Atlasphere</h1>
           <span class="tagline">Interactive World Map</span>
@@ -25,24 +50,25 @@
       <!-- Search Box with Autocomplete -->
       <div class="search-container">
         <div class="search-input-wrapper">
-          <span class="search-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
-          <input type="text" id="search-input" placeholder="Search countries, capitals, cultures... (Press /)" autocomplete="off" spellcheck="false">
-          <button id="search-clear-btn" class="icon-btn hidden" title="Clear search">&times;</button>
-          <kbd class="shortcut-hint">/</kbd>
+          <label for="search-input" class="sr-only">Search countries, capitals, cultures</label>
+          <span class="search-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+          <input type="text" id="search-input" placeholder="Search countries, capitals, cultures... (Press /)" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results-dropdown" aria-haspopup="listbox">
+          <button id="search-clear-btn" class="icon-btn hidden" title="Clear search" aria-label="Clear search query">&times;</button>
+          <kbd class="shortcut-hint" aria-hidden="true">/</kbd>
         </div>
-        <div id="search-results-dropdown" class="search-dropdown hidden"></div>
+        <div id="search-results-dropdown" class="search-dropdown hidden" role="listbox" aria-label="Search results"></div>
       </div>
 
       <!-- Mode Selector & Controls -->
       <div class="header-actions">
-        <div class="mode-tabs">
-          <button class="mode-btn active" data-mode="explore" title="Standard Explorer">
+        <div class="mode-tabs" role="tablist" aria-label="Explorer modes">
+          <button class="mode-btn active" data-mode="explore" title="Standard Explorer" role="tab" aria-selected="true" aria-controls="map">
             <span class="btn-label">Explore</span>
           </button>
-          <button class="mode-btn" data-mode="choropleth" title="Heatmap by metrics">
+          <button class="mode-btn" data-mode="choropleth" title="Heatmap by metrics" role="tab" aria-selected="false" aria-controls="map">
             <span class="btn-label">Heatmap</span>
           </button>
-          <button class="mode-btn" data-mode="quiz" title="Geography Quiz Game">
+          <button class="mode-btn" data-mode="quiz" title="Geography Quiz Game" role="tab" aria-selected="false" aria-controls="map">
             <span class="btn-label">Quiz</span>
           </button>
         </div>
@@ -50,15 +76,15 @@
 
         <!-- Basemap Layer Dropdown (100% No-label options) -->
         <div class="dropdown-wrapper">
-          <button id="basemap-toggle-btn" class="action-btn" title="Change Base Map">
+          <button id="basemap-toggle-btn" class="action-btn" title="Change Base Map" aria-expanded="false" aria-haspopup="true" aria-controls="basemap-menu" aria-label="Change base map layer">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
             <span class="btn-label">Layers</span>
           </button>
-          <div id="basemap-menu" class="dropdown-menu hidden">
-            <div class="menu-item active" data-layer="dark">Dark Relief</div>
-            <div class="menu-item" data-layer="satellite">Satellite Imagery</div>
-            <div class="menu-item" data-layer="relief">Topography</div>
-            <div class="menu-item" data-layer="ocean">Ocean Bathymetry</div>
+          <div id="basemap-menu" class="dropdown-menu hidden" role="menu" aria-label="Base map layers">
+            <div class="menu-item active" data-layer="dark" role="menuitem" tabindex="0">Dark Relief</div>
+            <div class="menu-item" data-layer="satellite" role="menuitem" tabindex="0">Satellite Imagery</div>
+            <div class="menu-item" data-layer="relief" role="menuitem" tabindex="0">Topography</div>
+            <div class="menu-item" data-layer="ocean" role="menuitem" tabindex="0">Ocean Bathymetry</div>
           </div>
         </div>
       </div>
@@ -120,8 +146,12 @@
     </div>
 
     <!-- Map Canvas Container (Pristine map without text) -->
-    <main id="map-wrapper">
-      <div id="map"></div>
+    <main id="map-wrapper" role="main">
+      <div id="map-loader" class="map-loading-overlay">
+        <div class="map-spinner" aria-hidden="true"></div>
+        <span class="map-loading-text">Loading world map...</span>
+      </div>
+      <div id="map" role="region" aria-label="Interactive world map" tabindex="0"></div>
 
       <!-- Choropleth Legend -->
       <div id="choropleth-legend" class="legend-card hidden">
@@ -131,14 +161,15 @@
     </main>
 
     <!-- Country Detail Drawer (Bigger & Plumped) -->
-    <aside id="detail-drawer" class="detail-drawer hidden">
+    <aside id="detail-drawer" class="detail-drawer hidden" role="region" aria-label="Country Information">
+      <div class="drawer-drag-handle" aria-hidden="true"></div>
       <!-- Drawer Header -->
       <div class="drawer-header">
-        <button id="drawer-close-btn" class="drawer-close-btn" title="Close panel">&times;</button>
+        <button id="drawer-close-btn" class="drawer-close-btn" title="Close panel" aria-label="Close country details panel">&times;</button>
         
         <div class="drawer-hero-content">
           <div class="flag-hero-frame">
-            <img id="country-flag-img" class="flag-img" alt="National Flag" src="" />
+            <img id="country-flag-img" class="flag-img" alt="National Flag" src="" width="64" height="42" loading="lazy" decoding="async" />
             <span id="country-flag-display" class="flag-emoji-fallback hidden"></span>
           </div>
           <div class="drawer-title-block">
@@ -150,11 +181,11 @@
         </div>
 
       <!-- Drawer Tabs: Overview vs Culture -->
-      <div class="drawer-nav-tabs">
-        <button class="drawer-tab-btn active" data-drawer-tab="overview">
+      <div class="drawer-nav-tabs" role="tablist" aria-label="Country details tabs">
+        <button class="drawer-tab-btn active" data-drawer-tab="overview" role="tab" aria-selected="true" aria-controls="tab-overview">
           <span>Overview</span>
         </button>
-        <button class="drawer-tab-btn" data-drawer-tab="culture">
+        <button class="drawer-tab-btn" data-drawer-tab="culture" role="tab" aria-selected="false" aria-controls="tab-culture">
           <span>Culture &amp; Heritage</span>
         </button>
       </div>
@@ -171,7 +202,7 @@
                   <div class="data-card-value" id="val-capital">—</div>
                 </div>
                 <div class="capital-photo-frame" id="capital-photo-frame">
-                  <img id="capital-img" class="capital-photo" alt="Capital Landmark" src="" />
+                  <img id="capital-img" class="capital-photo" alt="Capital Landmark" src="" width="88" height="66" loading="lazy" decoding="async" />
                   <div id="capital-photo-fallback" class="capital-fallback hidden"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;"><line x1="2" y1="20" x2="22" y2="20"></line><line x1="6" y1="20" x2="6" y2="10"></line><line x1="10" y1="20" x2="10" y2="10"></line><line x1="14" y1="20" x2="14" y2="10"></line><line x1="18" y1="20" x2="18" y2="10"></line><polygon points="12 2 2 7 22 7 12 2"></polygon></svg></div>
                 </div>
               </div>
@@ -294,10 +325,10 @@
 
         <!-- Action Links -->
         <div class="drawer-actions">
-          <a id="btn-wiki-link" href="#" target="_blank" rel="noopener" class="drawer-link-btn primary">
+          <a id="btn-wiki-link" href="#" target="_blank" rel="noopener noreferrer" class="drawer-link-btn primary">
             <span>Explore on Wikipedia &rarr;</span>
           </a>
-          <a id="btn-gmaps-link" href="#" target="_blank" rel="noopener" class="drawer-link-btn secondary">
+          <a id="btn-gmaps-link" href="#" target="_blank" rel="noopener noreferrer" class="drawer-link-btn secondary">
             <span>Google Maps</span>
           </a>
         </div>
@@ -305,7 +336,7 @@
     </aside>
 
     <!-- Quiz Result Modal -->
-    <div id="quiz-modal" class="modal-overlay hidden">
+    <div id="quiz-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="quiz-modal-title" aria-describedby="quiz-modal-desc">
       <div class="modal-card">
         <div class="modal-icon" id="quiz-modal-icon"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H7v2h10v-2h-2c-.55 0-1-.45-1-1v-2.34"></path><path d="M6 4h12a2 2 0 0 1 2 2v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6V6a2 2 0 0 1 2-2z"></path></svg></div>
         <h3 id="quiz-modal-title">Quiz Completed!</h3>
