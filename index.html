@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atlasphere — Interactive World Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="style.css?v=5.6">
+</head>
+<body class="theme-black">
+  <div id="app-container">
+    <!-- Top Floating Header Bar -->
+    <header id="header-bar">
+      <div class="logo-section" id="logo-home">
+        <div class="logo-text">
+          <h1>Atlasphere</h1>
+          <span class="tagline">Interactive World Map</span>
+        </div>
+      </div>
+
+      <!-- Search Box with Autocomplete -->
+      <div class="search-container">
+        <div class="search-input-wrapper">
+          <span class="search-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+          <input type="text" id="search-input" placeholder="Search countries, capitals, cultures... (Press /)" autocomplete="off" spellcheck="false">
+          <button id="search-clear-btn" class="icon-btn hidden" title="Clear search">&times;</button>
+          <kbd class="shortcut-hint">/</kbd>
+        </div>
+        <div id="search-results-dropdown" class="search-dropdown hidden"></div>
+      </div>
+
+      <!-- Mode Selector & Controls -->
+      <div class="header-actions">
+        <div class="mode-tabs">
+          <button class="mode-btn active" data-mode="explore" title="Standard Explorer">
+            <span class="btn-label">Explore</span>
+          </button>
+          <button class="mode-btn" data-mode="choropleth" title="Heatmap by metrics">
+            <span class="btn-label">Heatmap</span>
+          </button>
+          <button class="mode-btn" data-mode="quiz" title="Geography Quiz Game">
+            <span class="btn-label">Quiz</span>
+          </button>
+        </div>
+
+
+        <!-- Basemap Layer Dropdown (100% No-label options) -->
+        <div class="dropdown-wrapper">
+          <button id="basemap-toggle-btn" class="action-btn" title="Change Base Map">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+            <span class="btn-label">Layers</span>
+          </button>
+          <div id="basemap-menu" class="dropdown-menu hidden">
+            <div class="menu-item active" data-layer="dark">Dark Relief</div>
+            <div class="menu-item" data-layer="satellite">Satellite Imagery</div>
+            <div class="menu-item" data-layer="relief">Topography</div>
+            <div class="menu-item" data-layer="ocean">Ocean Bathymetry</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Choropleth Sub-controls -->
+    <div id="choropleth-controls" class="choropleth-panel hidden">
+      <div class="panel-title">Heatmap Metric:</div>
+      <div class="metric-toggles">
+        <button class="metric-btn active" data-metric="temp">
+          <span>Temperature</span>
+        </button>
+
+        <!-- Dynamic Options: Celsius / Fahrenheit Toggle -->
+        <div id="temp-unit-toggle" class="unit-toggle-group">
+          <button class="unit-btn active" data-temp-unit="C" title="Celsius (°C)">°C</button>
+          <button class="unit-btn" data-temp-unit="F" title="Fahrenheit (°F)">°F</button>
+        </div>
+
+        <button class="metric-btn" data-metric="gdp">
+          <span>Total GDP</span>
+        </button>
+
+        <button class="metric-btn" data-metric="gdp_capita">
+          <span>GDP per Capita</span>
+        </button>
+
+        <button class="metric-btn" data-metric="population">
+          <span>Population</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quiz HUD -->
+    <div id="quiz-hud" class="quiz-hud-bar hidden">
+      <div class="quiz-target-info">
+        <span class="quiz-label">Find:</span>
+        <span id="quiz-target-name" class="quiz-target-name">Germany</span>
+        <span id="quiz-hint" class="quiz-hint-pill">Hint: Europe</span>
+      </div>
+      <div class="quiz-stats">
+        <div class="quiz-stat">
+          <span class="stat-label">Score</span>
+          <span id="quiz-score-val" class="stat-val">0</span>
+        </div>
+        <div class="quiz-stat">
+          <span class="stat-label">Streak</span>
+          <span id="quiz-streak-val" class="stat-val">0</span>
+        </div>
+        <div class="quiz-stat">
+          <span class="stat-label">Round</span>
+          <span id="quiz-round-val" class="stat-val">1 / 10</span>
+        </div>
+      </div>
+      <div class="quiz-actions">
+        <button id="quiz-skip-btn" class="quiz-btn secondary">Skip</button>
+        <button id="quiz-end-btn" class="quiz-btn danger">Exit Quiz</button>
+      </div>
+    </div>
+
+    <!-- Map Canvas Container (Pristine map without text) -->
+    <main id="map-wrapper">
+      <div id="map"></div>
+
+      <!-- Choropleth Legend -->
+      <div id="choropleth-legend" class="legend-card hidden">
+        <div class="legend-title" id="legend-title">Population Density</div>
+        <div class="legend-scale" id="legend-scale"></div>
+      </div>
+    </main>
+
+    <!-- Country Detail Drawer (Bigger & Plumped) -->
+    <aside id="detail-drawer" class="detail-drawer hidden">
+      <!-- Drawer Header -->
+      <div class="drawer-header">
+        <button id="drawer-close-btn" class="drawer-close-btn" title="Close panel">&times;</button>
+        
+        <div class="drawer-hero-content">
+          <div class="flag-hero-frame">
+            <img id="country-flag-img" class="flag-img" alt="National Flag" src="" />
+            <span id="country-flag-display" class="flag-emoji-fallback hidden"></span>
+          </div>
+          <div class="drawer-title-block">
+            <h2 id="country-name-display">Country Name</h2>
+            <p id="country-official-name" class="official-name">Official Sovereign Name</p>
+          </div>
+        </div>
+
+        </div>
+
+      <!-- Drawer Tabs: Overview vs Culture -->
+      <div class="drawer-nav-tabs">
+        <button class="drawer-tab-btn active" data-drawer-tab="overview">
+          <span>Overview</span>
+        </button>
+        <button class="drawer-tab-btn" data-drawer-tab="culture">
+          <span>Culture &amp; Heritage</span>
+        </button>
+      </div>
+
+      <!-- Drawer Body -->
+      <div class="drawer-body">
+        <!-- Tab 1: Overview (No subregion, No population bar, No UTC) -->
+        <div id="tab-overview" class="tab-pane active">
+          <div class="editorial-grid">
+            <div class="data-card capital-card full-width">
+              <div class="capital-card-layout">
+                <div class="capital-text-content">
+                  <div class="data-card-label">Capital City</div>
+                  <div class="data-card-value" id="val-capital">—</div>
+                </div>
+                <div class="capital-photo-frame" id="capital-photo-frame">
+                  <img id="capital-img" class="capital-photo" alt="Capital Landmark" src="" />
+                  <div id="capital-photo-fallback" class="capital-fallback hidden"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;"><line x1="2" y1="20" x2="22" y2="20"></line><line x1="6" y1="20" x2="6" y2="10"></line><line x1="10" y1="20" x2="10" y2="10"></line><line x1="14" y1="20" x2="14" y2="10"></line><line x1="18" y1="20" x2="18" y2="10"></line><polygon points="12 2 2 7 22 7 12 2"></polygon></svg></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="data-card">
+              <div class="data-card-label">Population</div>
+              <div class="data-card-value" id="val-population">—</div>
+            </div>
+
+            <div class="data-card">
+              <div class="data-card-label">Total GDP</div>
+              <div class="data-card-value" id="val-gdp">—</div>
+            </div>
+
+            <div class="data-card full-width">
+              <div class="data-card-label">GDP per Capita</div>
+              <div class="data-card-value" id="val-gdp-capita">—</div>
+            </div>
+
+            <div class="data-card full-width">
+              <div class="data-card-label">Currencies</div>
+              <div class="data-card-value" id="val-currency">—</div>
+            </div>
+
+            <div class="data-card full-width">
+              <div class="data-card-label">Official Languages</div>
+              <div class="data-card-value" id="val-languages">—</div>
+            </div>
+
+            <div class="data-card fun-fact-card full-width">
+              <div class="fun-fact-header">
+                <span class="data-card-label">Fun Fact</span>
+              </div>
+              <p class="fun-fact-text" id="val-fun-fact">—</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Non-Linear Bento Culture Section -->
+        <div id="tab-culture" class="tab-pane hidden">
+          <!-- Dynamic Asymmetric Bento Grid -->
+          <div class="culture-bento-grid">
+            <!-- Hero Bento Item: Culinary Soul -->
+            <div class="bento-box hero-cuisine" data-cat="food">
+              <div class="bento-title-row">
+                <h4 class="bento-title">National Dish &amp; Flavors</h4>
+              </div>
+              <p class="bento-desc" id="culture-dish">—</p>
+            </div>
+
+            <!-- Bento Item: How the Language Sounds to Foreigners with Spoken Audio Sample -->
+            <div class="bento-box hero-linguistic" data-cat="linguistic">
+              <div class="bento-title-row">
+                <h4 class="bento-title">How the Language Sounds to Foreigners</h4>
+              </div>
+
+              <!-- Embedded Spoken Language Audio Player Station -->
+              <div class="language-audio-box" id="language-audio-box">
+                <div class="audio-control-row">
+                  <button id="btn-play-lang-audio" class="lang-audio-btn" type="button" title="Listen to spoken audio sample">
+                    <span class="audio-btn-icon-wrap" id="lang-audio-icon-wrap">
+                      <svg class="icon-play" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+                      <svg class="icon-stop hidden" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
+                    </span>
+                    <span id="lang-audio-btn-label" class="lang-audio-label">Listen to Sample</span>
+                  </button>
+
+                  <div class="audio-wave-anim" id="audio-wave-anim">
+                    <span class="audio-wave-bar"></span>
+                    <span class="audio-wave-bar"></span>
+                    <span class="audio-wave-bar"></span>
+                    <span class="audio-wave-bar"></span>
+                    <span class="audio-wave-bar"></span>
+                  </div>
+
+                  <span class="lang-audio-badge" id="lang-audio-badge">Native Sample</span>
+                </div>
+
+                <div class="audio-quote-content">
+                  <div class="audio-phrase-native" id="audio-phrase-native">"Bonjour et bienvenue!"</div>
+                  <div class="audio-phrase-sub" id="audio-phrase-sub">"Hello and welcome!"</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bento Item: Architectural Landmarks -->
+            <div class="bento-box box-half" data-cat="landmarks">
+              <div class="bento-title-row">
+                <h4 class="bento-title">Iconic Landmark</h4>
+              </div>
+              <p class="bento-desc" id="culture-landmark">—</p>
+            </div>
+
+            <!-- Bento Item: Beverage / Ceremonial Customs -->
+            <div class="bento-box box-half" data-cat="traditions">
+              <div class="bento-title-row">
+                <h4 class="bento-title">Iconic Beverage</h4>
+              </div>
+              <p class="bento-desc" id="culture-drink">—</p>
+            </div>
+
+            <!-- Bento Item: Major Festivals -->
+            <div class="bento-box hero-festivals" data-cat="traditions">
+              <div class="bento-title-row">
+                <h4 class="bento-title">Festivals</h4>
+              </div>
+              <p class="bento-desc" id="culture-festivals">—</p>
+            </div>
+
+            <!-- Bento Item: Philosophy & Heritage Spotlight -->
+            <div class="bento-box hero-philosophy" data-cat="all">
+              <div class="bento-title-row">
+                <h4 class="bento-title">Core Wisdom &amp; Heritage</h4>
+              </div>
+              <p class="bento-desc philosophy-quote" id="culture-fact">—</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Links -->
+        <div class="drawer-actions">
+          <a id="btn-wiki-link" href="#" target="_blank" rel="noopener" class="drawer-link-btn primary">
+            <span>Explore on Wikipedia &rarr;</span>
+          </a>
+          <a id="btn-gmaps-link" href="#" target="_blank" rel="noopener" class="drawer-link-btn secondary">
+            <span>Google Maps</span>
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Quiz Result Modal -->
+    <div id="quiz-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-icon" id="quiz-modal-icon"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H7v2h10v-2h-2c-.55 0-1-.45-1-1v-2.34"></path><path d="M6 4h12a2 2 0 0 1 2 2v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6V6a2 2 0 0 1 2-2z"></path></svg></div>
+        <h3 id="quiz-modal-title">Quiz Completed!</h3>
+        <p id="quiz-modal-desc">You scored 8 out of 10.</p>
+        <div class="modal-score-board">
+          <div class="score-box">
+            <div class="score-num" id="modal-final-score">0</div>
+            <div class="score-lbl">Correct</div>
+          </div>
+          <div class="score-box">
+            <div class="score-num" id="modal-best-streak">0</div>
+            <div class="score-lbl">Max Streak</div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="quiz-play-again-btn" class="modal-btn primary">Play Again</button>
+          <button id="quiz-close-modal-btn" class="modal-btn secondary">Back to Explorer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- World Data GeoJSON -->
+  <script src="data/world-data.js?v=5.5"></script>
+  <!-- Cultural Heritage Data -->
+  <script src="data/culture-data.js?v=5.5"></script>
+  <!-- Spoken Language Samples Dataset -->
+  <script src="data/language-audio-data.js?v=5.5"></script>
+  <!-- Capital Landmarks Dataset -->
+  <script src="data/capital-landmarks.js?v=5.5"></script>
+  <!-- Capital Images Dataset -->
+  <script src="data/capital-images.js?v=5.5"></script>
+  <!-- Country Fun Facts Dataset -->
+  <script src="data/fun-facts.js?v=5.5"></script>
+  <!-- Main Application Logic -->
+  <script src="app.js?v=5.6"></script>
+</body>
+</html>
