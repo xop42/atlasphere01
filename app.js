@@ -140,9 +140,51 @@
     quizCloseModalBtn: document.getElementById('quiz-close-modal-btn')
   };
 
+  // --- Ensure Essential Datasets are Loaded ---
+  async function ensureDataLoaded() {
+    // Fast path: already present in window
+    if (window.WORLD_DATA && window.WORLD_DATA.features) return true;
+
+    // 1. Wait briefly (up to 1.5s) in case scripts are in-flight or being evaluated
+    for (let i = 0; i < 30; i++) {
+      if (window.WORLD_DATA && window.WORLD_DATA.features) return true;
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    // 2. Dynamic Fallback: load missing datasets via script injection with both absolute & relative paths
+    const datasets = [
+      { name: 'WORLD_DATA', check: () => window.WORLD_DATA && window.WORLD_DATA.features, paths: ['/data/world-data.js', './data/world-data.js', 'data/world-data.js'] },
+      { name: 'CULTURE_DATA', check: () => window.CULTURE_DATA, paths: ['/data/culture-data.js', './data/culture-data.js', 'data/culture-data.js'] },
+      { name: 'LANGUAGE_AUDIO_DATA', check: () => window.LANGUAGE_AUDIO_DATA, paths: ['/data/language-audio-data.js', './data/language-audio-data.js', 'data/language-audio-data.js'] },
+      { name: 'CAPITAL_LANDMARKS', check: () => window.CAPITAL_LANDMARKS, paths: ['/data/capital-landmarks.js', './data/capital-landmarks.js', 'data/capital-landmarks.js'] },
+      { name: 'CAPITAL_IMAGES', check: () => window.CAPITAL_IMAGES, paths: ['/data/capital-images.js', './data/capital-images.js', 'data/capital-images.js'] },
+      { name: 'COUNTRY_FUN_FACTS', check: () => window.COUNTRY_FUN_FACTS, paths: ['/data/fun-facts.js', './data/fun-facts.js', 'data/fun-facts.js'] },
+    ];
+
+    for (const ds of datasets) {
+      if (!ds.check()) {
+        for (const p of ds.paths) {
+          try {
+            const ok = await new Promise(resolve => {
+              const script = document.createElement('script');
+              script.src = p;
+              script.onload = () => resolve(true);
+              script.onerror = () => { script.remove(); resolve(false); };
+              document.head.appendChild(script);
+            });
+            if (ok && ds.check()) break;
+          } catch (err) {}
+        }
+      }
+    }
+
+    return !!(window.WORLD_DATA && window.WORLD_DATA.features);
+  }
+
   // --- Initialize Application ---
-  function init() {
-    if (!window.WORLD_DATA || !window.WORLD_DATA.features) {
+  async function init() {
+    const isReady = await ensureDataLoaded();
+    if (!isReady) {
       console.error('World data not loaded!');
       return;
     }
@@ -463,7 +505,10 @@
   function showCountryDrawer(props) {
     // 1. National Flag
     if (props.flag_img) {
-      el.drawerFlagImg.src = props.flag_img;
+      let flagSrc = props.flag_img;
+      if (flagSrc.startsWith('/')) flagSrc = '.' + flagSrc;
+      else if (!flagSrc.startsWith('./') && !flagSrc.startsWith('http')) flagSrc = './' + flagSrc;
+      el.drawerFlagImg.src = flagSrc;
       el.drawerFlagImg.onerror = function () {
         el.drawerFlagImg.classList.add('hidden');
         el.drawerFlag.classList.remove('hidden');
