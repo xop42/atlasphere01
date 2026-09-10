@@ -35,6 +35,21 @@
   // --- Search Autocomplete & Keyboard Nav State ---
   let searchResultsCache = [];
   let selectedSearchIndex = -1;
+  // RAF throttle for hover performance (INP)
+  let hoverRaf = null;
+
+  // Precomputed search index for instant 0ms query filtering
+  function buildSearchIndex() {
+    if (!window.WORLD_DATA || !window.WORLD_DATA.features) return;
+    window.WORLD_DATA.features.forEach(f => {
+      const p = f.properties;
+      p._nameLower = (p.name || '').toLowerCase();
+      p._capLower = (p.capital && p.capital !== 'N/A') ? p.capital.toLowerCase() : '';
+      p._iso2Lower = (p.iso_a2 || '').toLowerCase();
+      p._iso3Lower = (p.iso_a3 || '').toLowerCase();
+    });
+  }
+
 
 
 
@@ -204,6 +219,7 @@
       return;
     }
 
+    buildSearchIndex();
     initMap();
     renderGeoJson();
     setupEventListeners();
@@ -449,19 +465,22 @@
     updateChoroplethLegend();
   }
 
-  // --- Hover Interaction (No text on the map) ---
+  // --- Hover Interaction with RAF Throttling for optimal INP ---
   function handleCountryHover(e, feature, layer) {
     if (currentMode === 'quiz') return;
 
     if (layer !== selectedLayer) {
-      layer.setStyle({
-        weight: 2.2,
-        color: '#ffffff',
-        fillOpacity: 0.88
+      if (hoverRaf) cancelAnimationFrame(hoverRaf);
+      hoverRaf = requestAnimationFrame(() => {
+        layer.setStyle({
+          weight: 2.2,
+          color: '#ffffff',
+          fillOpacity: 0.88
+        });
+        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+          try { layer.bringToFront(); } catch (err) {}
+        }
       });
-      if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-        layer.bringToFront();
-      }
     }
   }
 
@@ -469,6 +488,7 @@
     if (currentMode === 'quiz') return;
 
     if (layer !== selectedLayer) {
+      if (hoverRaf) cancelAnimationFrame(hoverRaf);
       layer.setStyle(getCountryStyle(feature));
     }
   }
@@ -716,10 +736,10 @@
 
     const matches = window.WORLD_DATA.features.filter(f => {
       const p = f.properties;
-      return (p.name && p.name.toLowerCase().includes(query)) ||
-             (p.capital && p.capital.toLowerCase().includes(query)) ||
-             (p.iso_a2 && p.iso_a2.toLowerCase() === query) ||
-             (p.iso_a3 && p.iso_a3.toLowerCase() === query);
+      return (p._nameLower && p._nameLower.includes(query)) ||
+             (p._capLower && p._capLower.includes(query)) ||
+             (p._iso2Lower === query) ||
+             (p._iso3Lower === query);
     }).slice(0, 8);
 
     renderSearchResults(matches);
@@ -1410,6 +1430,42 @@
       el.quizModal.classList.add('hidden');
       startQuiz();
     });
+        // Prevent default on empty external links
+    [el.btnWiki, el.btnGmaps].forEach(link => {
+      if (link) {
+        link.addEventListener('click', (e) => {
+          const href = link.getAttribute('href');
+          if (!href || href === '#') e.preventDefault();
+        });
+      }
+    });
+
+    // Modal keyboard accessibility & focus trap
+    el.quizModal.addEventListener('keydown', (e) => {
+      if (el.quizModal.classList.contains('hidden')) return;
+
+      if (e.key === 'Escape') {
+        el.quizModal.classList.add('hidden');
+        switchMode('explore');
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const focusable = [el.quizPlayAgainBtn, el.quizCloseModalBtn].filter(Boolean);
+        if (focusable.length < 2) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
     el.quizCloseModalBtn.addEventListener('click', () => {
       el.quizModal.classList.add('hidden');
       switchMode('explore');
