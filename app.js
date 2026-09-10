@@ -35,8 +35,15 @@
   // --- Search Autocomplete & Keyboard Nav State ---
   let searchResultsCache = [];
   let selectedSearchIndex = -1;
-  // RAF throttle for hover performance (INP)
-  let hoverRaf = null;
+  // Active hover tracking to prevent stuck highlights across country boundaries
+  let currentHoveredLayer = null;
+
+  function resetHoveredCountry() {
+    if (currentHoveredLayer && currentHoveredLayer !== selectedLayer) {
+      currentHoveredLayer.setStyle(getCountryStyle(currentHoveredLayer.feature));
+      currentHoveredLayer = null;
+    }
+  }
 
   // Precomputed search index for instant 0ms query filtering
   function buildSearchIndex() {
@@ -275,6 +282,9 @@
     });
 
     baseLayers[currentBaseLayer].addTo(map);
+
+    // Global safety net: clear hover highlight whenever cursor leaves map or countries
+    map.on('mouseout', resetHoveredCountry);
   }
 
   // --- Harmonious Bright & Non-glaring Palette ---
@@ -462,24 +472,26 @@
       }
     }).addTo(map);
 
+    geojsonLayer.on('mouseout', resetHoveredCountry);
+
     updateChoroplethLegend();
   }
 
-  // --- Hover Interaction with RAF Throttling for optimal INP ---
+  // --- Hover Interaction (Bulletproof Single-Hover Highlight) ---
   function handleCountryHover(e, feature, layer) {
     if (currentMode === 'quiz') return;
 
+    // Immediately reset any other country that might have remained highlighted
+    if (currentHoveredLayer && currentHoveredLayer !== layer && currentHoveredLayer !== selectedLayer) {
+      currentHoveredLayer.setStyle(getCountryStyle(currentHoveredLayer.feature));
+    }
+
     if (layer !== selectedLayer) {
-      if (hoverRaf) cancelAnimationFrame(hoverRaf);
-      hoverRaf = requestAnimationFrame(() => {
-        layer.setStyle({
-          weight: 2.2,
-          color: '#ffffff',
-          fillOpacity: 0.88
-        });
-        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-          try { layer.bringToFront(); } catch (err) {}
-        }
+      currentHoveredLayer = layer;
+      layer.setStyle({
+        weight: 2.0,
+        color: '#ffffff',
+        fillOpacity: 0.88
       });
     }
   }
@@ -488,8 +500,10 @@
     if (currentMode === 'quiz') return;
 
     if (layer !== selectedLayer) {
-      if (hoverRaf) cancelAnimationFrame(hoverRaf);
       layer.setStyle(getCountryStyle(feature));
+    }
+    if (currentHoveredLayer === layer) {
+      currentHoveredLayer = null;
     }
   }
 
@@ -504,6 +518,7 @@
   }
 
   function selectCountry(feature, layer, zoomIn = true) {
+    resetHoveredCountry();
     try {
       if (selectedLayer && selectedLayer !== layer && selectedCountryFeature) {
         selectedLayer.setStyle(getCountryStyle(selectedCountryFeature));
@@ -650,6 +665,7 @@
   }
 
   function hideCountryDrawer() {
+    resetHoveredCountry();
     stopLanguageAudio();
     el.detailDrawer.classList.add('hidden');
     el.detailDrawer.setAttribute('aria-modal', 'false');
@@ -833,6 +849,7 @@
 
   // --- Continent Filter ---
   function applyContinentFilter(continent) {
+    resetHoveredCountry();
     currentContinentFilter = continent;
     el.filterPills.forEach(pill => {
       pill.classList.toggle('active', pill.dataset.continent === continent);
