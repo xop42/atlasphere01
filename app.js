@@ -505,7 +505,10 @@
   function showCountryDrawer(props) {
     // 1. National Flag
     if (props.flag_img) {
-      el.drawerFlagImg.src = props.flag_img.startsWith('/') ? props.flag_img : '/' + props.flag_img;
+      let flagSrc = props.flag_img;
+      if (flagSrc.startsWith('/')) flagSrc = '.' + flagSrc;
+      else if (!flagSrc.startsWith('./') && !flagSrc.startsWith('http')) flagSrc = './' + flagSrc;
+      el.drawerFlagImg.src = flagSrc;
       el.drawerFlagImg.onerror = function () {
         el.drawerFlagImg.classList.add('hidden');
         el.drawerFlag.classList.remove('hidden');
