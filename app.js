@@ -259,11 +259,13 @@
       zoom: minZ,
       minZoom: minZ,
       maxZoom: 9,
-      zoomSnap: 0.25,
+      zoomSnap: 0.5,
       zoomDelta: 0.5,
-      wheelDebounceTime: 40,
+      wheelPxPerZoomLevel: 90,
+      wheelDebounceTime: 50,
       scrollWheelZoom: true,
       zoomAnimation: true,
+      zoomAnimationThreshold: 8,
       fadeAnimation: true,
       zoomControl: false,
       attributionControl: true,
@@ -684,6 +686,8 @@
 
     el.detailDrawer.classList.remove('hidden');
     el.detailDrawer.setAttribute('aria-modal', 'true');
+    const appCont = document.getElementById('app-container');
+    if (appCont) appCont.classList.add('drawer-open');
   }
 
     function switchDrawerTab(tabKey) {
@@ -708,6 +712,8 @@
     stopLanguageAudio();
     el.detailDrawer.classList.add('hidden');
     el.detailDrawer.setAttribute('aria-modal', 'false');
+    const appCont = document.getElementById('app-container');
+    if (appCont) appCont.classList.remove('drawer-open');
     if (selectedLayer) {
       geojsonLayer.resetStyle(selectedLayer);
       selectedLayer = null;
@@ -1477,6 +1483,38 @@
     });
 
     // Drawer Close
+        // Zoom Controls with Smooth Animated Transitions
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+
+    if (btnZoomIn) {
+      btnZoomIn.addEventListener('click', () => {
+        if (!map) return;
+        const nextZ = Math.min(map.getMaxZoom(), map.getZoom() + 0.5);
+        map.setZoom(nextZ, { animate: true });
+      });
+    }
+
+    if (btnZoomOut) {
+      btnZoomOut.addEventListener('click', () => {
+        if (!map) return;
+        const nextZ = Math.max(map.getMinZoom(), map.getZoom() - 0.5);
+        map.setZoom(nextZ, { animate: true });
+      });
+    }
+
+    // Keyboard zoom (+ and -) with animation
+    document.addEventListener('keydown', (e) => {
+      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        if (map) map.setZoom(Math.min(map.getMaxZoom(), map.getZoom() + 0.5), { animate: true });
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        if (map) map.setZoom(Math.max(map.getMinZoom(), map.getZoom() - 0.5), { animate: true });
+      }
+    });
+
     el.drawerCloseBtn.addEventListener('click', hideCountryDrawer);
 
     // Quiz Controls
