@@ -526,17 +526,17 @@
     }
   }
 
-  // --- Click Interaction ---
+  // --- Click Interaction (No auto-zoom on click) ---
   function handleCountryClick(e, feature, layer) {
     if (currentMode === 'quiz') {
       evaluateQuizAnswer(feature, layer);
       return;
     }
 
-    selectCountry(feature, layer, true);
+    selectCountry(feature, layer, false);
   }
 
-  function selectCountry(feature, layer, zoomIn = true) {
+  function selectCountry(feature, layer, zoomIn = false) {
     resetHoveredCountry();
     try {
       if (selectedLayer && selectedLayer !== layer && selectedCountryFeature) {
