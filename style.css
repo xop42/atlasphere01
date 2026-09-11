@@ -1138,6 +1138,12 @@ img.search-item-flag {
   border-left: 4px solid #10b981;
 }
 
+.bento-box.hero-philosophy {
+  grid-column: span 2;
+  background: #1e1b24;
+  border-left: 4px solid #f59e0b;
+}
+
 .bento-box.box-half {
   grid-column: span 1;
 }
@@ -1781,6 +1787,30 @@ img.search-item-flag {
   .modal-card {
     padding: 24px 18px;
   }
+  .drawer-body {
+    padding: 16px 18px;
+    gap: 12px;
+  }
+  .editorial-grid,
+  .culture-bento-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .bento-box,
+  .bento-box.box-half,
+  .bento-box.hero-cuisine,
+  .bento-box.hero-linguistic,
+  .bento-box.hero-festivals,
+  .bento-box.hero-philosophy,
+  .bento-box.full-width {
+    grid-column: 1 / -1 !important;
+    width: 100%;
+  }
+  .data-card,
+  .data-card.full-width {
+    grid-column: 1 / -1 !important;
+    width: 100%;
+  }
 }
 
 @media (max-width: 440px) {
@@ -1791,11 +1821,25 @@ img.search-item-flag {
     padding: 5px 7px;
     font-size: 0.70rem;
   }
-  .editorial-grid {
+  .editorial-grid,
+  .culture-bento-grid {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
-  .bento-box.box-half {
-    grid-column: span 12;
+  .bento-box,
+  .bento-box.box-half,
+  .bento-box.hero-cuisine,
+  .bento-box.hero-linguistic,
+  .bento-box.hero-festivals,
+  .bento-box.hero-philosophy,
+  .bento-box.full-width {
+    grid-column: 1 / -1 !important;
+    width: 100%;
+  }
+  .data-card,
+  .data-card.full-width {
+    grid-column: 1 / -1 !important;
+    width: 100%;
   }
   .drawer-link-btn {
     padding: 11px;
