@@ -81,29 +81,25 @@
       attrib: 'Tiles &copy; Esri &mdash; Surface Elevation',
       maxZoom: 13,
       className: 'tile-dark-relief',
-      noWrap: true,
-      bounds: [[-85, -180], [85, 180]]
+      noWrap: true
     },
     satellite: {
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       attrib: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
       maxZoom: 19,
-      noWrap: true,
-      bounds: [[-85, -180], [85, 180]]
+      noWrap: true
     },
     relief: {
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}',
       attrib: 'Tiles &copy; Esri &mdash; Esri, USGS',
       maxZoom: 13,
-      noWrap: true,
-      bounds: [[-85, -180], [85, 180]]
+      noWrap: true
     },
     ocean: {
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
       attrib: 'Tiles &copy; Esri &mdash; GEBCO, NOAA, National Geographic',
       maxZoom: 13,
-      noWrap: true,
-      bounds: [[-85, -180], [85, 180]]
+      noWrap: true
     }
   };
 
@@ -250,10 +246,16 @@
     return Math.max(2.2, Math.ceil(Math.log2(w / 256) * 10) / 10);
   }
 
+  // Global high-buffer SVG renderer (pre-renders vector paths 150% beyond viewport to prevent any black voids)
+  let vectorSvgRenderer = null;
+
   // --- Map Setup ---
   function initMap() {
     const minZ = calculateFitZoom();
+    vectorSvgRenderer = L.svg({ padding: 1.5 });
+
     map = L.map('map', {
+      renderer: vectorSvgRenderer,
       preferCanvas: false,
       center: [20, 0],
       zoom: minZ,
@@ -269,8 +271,8 @@
       fadeAnimation: true,
       zoomControl: false,
       attributionControl: true,
-      maxBounds: [[-85, -180], [85, 180]],
-      maxBoundsViscosity: 0.75,
+      maxBounds: [[-90, -210], [90, 210]],
+      maxBoundsViscosity: 0.25,
       worldCopyJump: false
     });
 
@@ -281,13 +283,23 @@
         maxZoom: cfg.maxZoom || 19,
         className: cfg.className || '',
         noWrap: true,
-        keepBuffer: 8,
-        updateInterval: 100,
-        bounds: [[-85, -180], [85, 180]]
+        keepBuffer: 32,
+        updateInterval: 50
       });
     });
 
     baseLayers[currentBaseLayer].addTo(map);
+
+    // Ensure full viewport layout calculation immediately and after layout settling
+    const refreshViewport = () => {
+      if (map) {
+        try { map.invalidateSize(); } catch (e) {}
+      }
+    };
+    setTimeout(refreshViewport, 50);
+    setTimeout(refreshViewport, 250);
+    setTimeout(refreshViewport, 600);
+    window.addEventListener('resize', refreshViewport);
 
     // Global safety net: clear hover highlight whenever cursor leaves map or countries
     map.on('mouseout', resetHoveredCountry);
@@ -301,6 +313,7 @@
     map.on('zoomend moveend', () => {
       setTimeout(() => {
         isMapBusy = false;
+        refreshViewport();
       }, 80);
     });
   }
@@ -473,7 +486,10 @@
       map.removeLayer(geojsonLayer);
     }
 
+    const rendererToUse = vectorSvgRenderer || L.svg({ padding: 1.5 });
+
     geojsonLayer = L.geoJSON(window.WORLD_DATA, {
+      renderer: rendererToUse,
       style: getCountryStyle,
       onEachFeature: function (feature, layer) {
         layer.on({
@@ -688,6 +704,7 @@
     el.detailDrawer.setAttribute('aria-modal', 'true');
     const appCont = document.getElementById('app-container');
     if (appCont) appCont.classList.add('drawer-open');
+    setTimeout(() => { if (map) map.invalidateSize(); }, 360);
   }
 
     function switchDrawerTab(tabKey) {
@@ -714,6 +731,7 @@
     el.detailDrawer.setAttribute('aria-modal', 'false');
     const appCont = document.getElementById('app-container');
     if (appCont) appCont.classList.remove('drawer-open');
+    setTimeout(() => { if (map) map.invalidateSize(); }, 360);
     if (selectedLayer) {
       geojsonLayer.resetStyle(selectedLayer);
       selectedLayer = null;
