@@ -37,6 +37,7 @@
   let selectedSearchIndex = -1;
   // Active hover tracking to prevent stuck highlights across country boundaries
   let currentHoveredLayer = null;
+  let isMapBusy = false;
 
   function resetHoveredCountry() {
     if (currentHoveredLayer && currentHoveredLayer !== selectedLayer) {
@@ -253,18 +254,21 @@
   function initMap() {
     const minZ = calculateFitZoom();
     map = L.map('map', {
-      preferCanvas: false,    // Hardware-accelerated SVG renderer ensures seamless vector retention without uncoloured voids on zoom-out
+      preferCanvas: false,
       center: [20, 0],
       zoom: minZ,
-      minZoom: minZ,          // Clamps zoom so uncolored sides can NEVER appear
+      minZoom: minZ,
       maxZoom: 9,
-      scrollWheelZoom: true,  // Fast, instant, responsive zoom
-      zoomAnimation: true,    // Smooth CSS 3D compositor zoom transition
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      wheelDebounceTime: 40,
+      scrollWheelZoom: true,
+      zoomAnimation: true,
       fadeAnimation: true,
       zoomControl: false,
       attributionControl: true,
       maxBounds: [[-85, -180], [85, 180]],
-      maxBoundsViscosity: 1.0, // Solid bounds: prevents panning outside actual map
+      maxBoundsViscosity: 0.75,
       worldCopyJump: false
     });
 
@@ -285,6 +289,18 @@
 
     // Global safety net: clear hover highlight whenever cursor leaves map or countries
     map.on('mouseout', resetHoveredCountry);
+
+    // Suppress hover updates while map is animating/panning to prevent stutter and glitches
+    map.on('zoomstart movestart', () => {
+      isMapBusy = true;
+      resetHoveredCountry();
+    });
+
+    map.on('zoomend moveend', () => {
+      setTimeout(() => {
+        isMapBusy = false;
+      }, 80);
+    });
   }
 
   // --- Harmonious Bright & Non-glaring Palette ---
@@ -480,6 +496,7 @@
   // --- Hover Interaction (Bulletproof Single-Hover Highlight) ---
   function handleCountryHover(e, feature, layer) {
     if (currentMode === 'quiz') return;
+    if (isMapBusy || (map && map._animatingZoom)) return;
 
     // Immediately reset any other country that might have remained highlighted
     if (currentHoveredLayer && currentHoveredLayer !== layer && currentHoveredLayer !== selectedLayer) {
@@ -539,14 +556,36 @@
 
         if (zoomIn && typeof layer.getBounds === 'function') {
           try {
-            map.fitBounds(layer.getBounds(), {
-              paddingTopLeft: [50, 50],
-              paddingBottomRight: [window.innerWidth > 900 ? 520 : 50, 50],
-              maxZoom: 6,
-              duration: 1.2
-            });
+            const bounds = layer.getBounds();
+            if (bounds && bounds.isValid && bounds.isValid()) {
+              const center = bounds.getCenter();
+              const latDiff = Math.abs(bounds.getNorth() - bounds.getSouth());
+              const lngDiff = Math.abs(bounds.getEast() - bounds.getWest());
+              const maxDiff = Math.max(latDiff, lngDiff);
+
+              let targetZoom = 5;
+              if (maxDiff > 35) targetZoom = 3;
+              else if (maxDiff > 14) targetZoom = 4;
+              else if (maxDiff > 4) targetZoom = 5;
+              else if (maxDiff > 1.2) targetZoom = 6;
+              else targetZoom = 7;
+
+              targetZoom = Math.min(targetZoom, 7);
+
+              // On desktop with drawer on right, gently offset target longitude for optimal framing
+              let targetLng = center.lng;
+              if (window.innerWidth > 900) {
+                const span = 360 / Math.pow(2, targetZoom);
+                targetLng = center.lng + span * 0.12;
+              }
+
+              map.flyTo([center.lat, targetLng], targetZoom, {
+                duration: 0.85,
+                easeLinearity: 0.25
+              });
+            }
           } catch (zoomErr) {
-            console.warn('fitBounds error ignored:', zoomErr);
+            console.warn('flyTo error ignored:', zoomErr);
           }
         }
       }
